@@ -35,9 +35,9 @@ class SandboxManager:
             logger.warning(f"Docker is not available: {str(e)}. Falling back to local execution.")
             return False
             
-    def compile_and_run(self, source_code: str, policy: SandboxPolicy = SandboxPolicy()) -> ExecutionTrace:
+    def compile_and_run(self, source_code: str, input_data: str = "", policy: SandboxPolicy = SandboxPolicy()) -> ExecutionTrace:
         """
-        Instruments, compiles, and runs user C++ code.
+        Instruments, compiles, and runs user C++ code with optional input.
         """
         session_id = str(uuid.uuid4())
         instrumented_code = self.instrumenter.instrument(source_code)
@@ -52,17 +52,21 @@ class SandboxManager:
             
             cpp_path = os.path.join(temp_dir, cpp_filename)
             bin_path = os.path.join(temp_dir, bin_filename)
+            input_path = os.path.join(temp_dir, "input.txt")
             
             with open(cpp_path, "w", encoding="utf-8") as f:
                 f.write(instrumented_code)
                 
+            with open(input_path, "w", encoding="utf-8") as f:
+                f.write(input_data)
+                
             if self.docker_available:
-                return self._run_in_docker(session_id, temp_dir, cpp_filename, bin_filename, policy)
+                return self._run_in_docker(session_id, temp_dir, cpp_filename, bin_filename, input_data, policy)
             else:
-                return self._run_locally(session_id, cpp_path, bin_path, policy)
+                return self._run_locally(session_id, cpp_path, bin_path, input_data, policy)
                 
     def _run_in_docker(
-        self, session_id: str, temp_dir: str, cpp_file: str, bin_file: str, policy: SandboxPolicy
+        self, session_id: str, temp_dir: str, cpp_file: str, bin_file: str, input_data: str, policy: SandboxPolicy
     ) -> ExecutionTrace:
         """Compiles and executes C++ code inside a single Docker container, bypassing Windows NTFS execution permissions limits."""
         import docker
@@ -70,7 +74,7 @@ class SandboxManager:
         
         try:
             volumes = {temp_dir: {"bind": "/workspace", "mode": "rw"}}
-            combined_cmd = f"sh -c 'g++ -O0 /workspace/{cpp_file} -o /tmp/main && /tmp/main'"
+            combined_cmd = f"sh -c 'g++ -O0 /workspace/{cpp_file} -o /tmp/main && /tmp/main < /workspace/input.txt'"
             
             logger.info("Compiling and executing inside Docker sandbox...")
             
@@ -93,8 +97,9 @@ class SandboxManager:
             try:
                 wait_result = container.wait(timeout=float(policy.timeout_ms / 1000))
                 exit_code = wait_result.get("StatusCode", 0)
-                logs = container.logs(stdout=True, stderr=True)
-                stdout_data = logs.decode("utf-8", errors="ignore")
+                
+                stdout_data = container.logs(stdout=True, stderr=False).decode("utf-8", errors="ignore")
+                stderr_data = container.logs(stdout=False, stderr=True).decode("utf-8", errors="ignore")
                 
                 container.remove(force=True)
                 
@@ -102,10 +107,10 @@ class SandboxManager:
                     return ExecutionTrace(
                         session_id=session_id,
                         status="error",
-                        error_message=stdout_data
+                        error_message=stderr_data if stderr_data.strip() else stdout_data
                     )
                     
-                return self._parse_output(session_id, stdout_data, "")
+                return self._parse_output(session_id, stdout_data, stderr_data)
                 
             except Exception as wait_exc:
                 try:
@@ -140,7 +145,7 @@ class SandboxManager:
             )
 
     def _run_locally(
-        self, session_id: str, cpp_path: str, bin_path: str, policy: SandboxPolicy
+        self, session_id: str, cpp_path: str, bin_path: str, input_data: str, policy: SandboxPolicy
     ) -> ExecutionTrace:
         """Fallback local g++ compilation and execution with timeouts and constraints."""
         logger.info("Executing locally (Fallback mode)...")
@@ -174,6 +179,7 @@ class SandboxManager:
         try:
             run_process = subprocess.run(
                 [bin_path],
+                input=input_data,
                 capture_output=True,
                 text=True,
                 timeout=float(policy.timeout_ms / 1000)
@@ -195,11 +201,11 @@ class SandboxManager:
             )
             
     def _parse_output(self, session_id: str, stdout: str, stderr: str) -> ExecutionTrace:
-        """Parses output containing both JSON trace logs and custom program prints."""
+        """Parses output streams: trace logs are parsed from stderr, and user outputs are captured from stdout."""
         events = []
         step_counter = 1
         
-        for line in stdout.splitlines():
+        for line in stderr.splitlines():
             line_str = line.strip()
             if not line_str:
                 continue
@@ -226,13 +232,6 @@ class SandboxManager:
                             value=data["value"]
                         ))
                         step_counter += 1
-                        
-                    else:
-                        events.append(OutputEvent(
-                            type="output",
-                            line=0,
-                            text=line_str
-                        ))
                 except (json.JSONDecodeError, KeyError):
                     events.append(OutputEvent(
                         type="output",
@@ -243,14 +242,14 @@ class SandboxManager:
                 events.append(OutputEvent(
                     type="output",
                     line=0,
-                    text=line_str
+                    text=f"[stderr]: {line_str}"
                 ))
                 
-        if stderr.strip():
+        for line in stdout.splitlines():
             events.append(OutputEvent(
                 type="output",
                 line=0,
-                text=f"[stderr]: {stderr.strip()}"
+                text=line
             ))
             
         return ExecutionTrace(

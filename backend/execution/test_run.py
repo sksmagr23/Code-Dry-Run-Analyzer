@@ -9,20 +9,29 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from backend.execution.sandbox.manager import SandboxManager
 from backend.execution.sandbox.policy import SandboxPolicy
 
-test_code = """#include <iostream>
-
-int fib(int n) {
-    if (n <= 1) {
-        return n;
-    }
-    return fib(n - 1) + fib(n - 2);
-}
+test_code = """#include <bits/stdc++.h>
+using namespace std;
 
 int main() {
-    int val = 6;
-    int res = fib(val);
-    std::cout << "Fibonacci of 6 is: " << res << std::endl;
-    return 0;
+	// your code goes here
+	int n;
+	cin >> n;
+	vector<int> h(n);
+	for (int i = 0; i < n; i++) cin >> h[i];
+	int i = 0, j = n-1;
+	long long ans = 0;
+	
+	while (i < j){
+	    long long w = 1LL * (j-i) * min(h[i], h[j]);
+	    ans = max(ans, w);
+	    if (h[i] < h[j]){
+	        i++;
+	    } else {
+	        j--;
+	    }
+	}
+	cout << ans;
+	return 0;
 }
 """
 
@@ -32,7 +41,8 @@ def main():
     
     print("Running C++ test code execution...")
     policy = SandboxPolicy(timeout_ms=15000)
-    trace = manager.compile_and_run(test_code, policy)
+    program_input = "9\n1 8 6 2 5 4 8 3 7"
+    trace = manager.compile_and_run(test_code, program_input, policy)
     
     print(f"Execution Status: {trace.status}")
     if trace.status != "success":

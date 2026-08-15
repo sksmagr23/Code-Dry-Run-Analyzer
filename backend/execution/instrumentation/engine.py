@@ -9,27 +9,27 @@ CPP_PREAMBLE = """// ==========================================
 
 template<typename T>
 void __trace_var(int line, const char* name, const T& val) {
-    std::cout << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":" << val << "}" << std::endl;
+    std::cerr << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":" << val << "}" << std::endl;
 }
 
 inline void __trace_var(int line, const char* name, const std::string& val) {
-    std::cout << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":\\"" << val << "\\"}" << std::endl;
+    std::cerr << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":\\"" << val << "\\"}" << std::endl;
 }
 
 inline void __trace_var(int line, const char* name, const char* val) {
-    std::cout << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":\\"" << val << "\\"}" << std::endl;
+    std::cerr << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":\\"" << val << "\\"}" << std::endl;
 }
 
 inline void __trace_var(int line, const char* name, char val) {
-    std::cout << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":\\"" << val << "\\"}" << std::endl;
+    std::cerr << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":\\"" << val << "\\"}" << std::endl;
 }
 
 inline void __trace_var(int line, const char* name, bool val) {
-    std::cout << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":" << (val ? "true" : "false") << "}" << std::endl;
+    std::cerr << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":" << (val ? "true" : "false") << "}" << std::endl;
 }
 
 inline void __trace_line(int line) {
-    std::cout << "{\\"type\\":\\"line\\",\\"line\\":" << line << "}" << std::endl;
+    std::cerr << "{\\"type\\":\\"line\\",\\"line\\":" << line << "}" << std::endl;
 }
 // ==========================================
 """
@@ -132,22 +132,31 @@ class CppInstrumenter:
             # Check for variable updates on this line
             var_found = None
             
-            # Look for: type var = expr;
-            decl_match = self.VAR_DECL_PATTERN.search(stripped)
-            if decl_match:
-                var_found = decl_match.group(2)
-                
-            if not var_found:
-                # Look for: var = expr;
-                assign_match = self.VAR_ASSIGN_PATTERN.search(stripped)
-                if assign_match:
-                    var_found = assign_match.group(1)
+            is_control_flow = (
+                stripped.startswith("for") or 
+                stripped.startswith("while") or 
+                stripped.startswith("if") or 
+                stripped.startswith("else") or 
+                stripped.startswith("switch")
+            )
+            
+            if not is_control_flow:
+                # Look for: type var = expr;
+                decl_match = self.VAR_DECL_PATTERN.search(stripped)
+                if decl_match:
+                    var_found = decl_match.group(2)
                     
-            if not var_found:
-                # Look for: var++;
-                inc_dec_match = self.VAR_INC_DEC_PATTERN.search(stripped)
-                if inc_dec_match:
-                    var_found = inc_dec_match.group(1) or inc_dec_match.group(4)
+                if not var_found:
+                    # Look for: var = expr;
+                    assign_match = self.VAR_ASSIGN_PATTERN.search(stripped)
+                    if assign_match:
+                        var_found = assign_match.group(1)
+                        
+                if not var_found:
+                    # Look for: var++;
+                    inc_dec_match = self.VAR_INC_DEC_PATTERN.search(stripped)
+                    if inc_dec_match:
+                        var_found = inc_dec_match.group(1) or inc_dec_match.group(4)
             
             if var_found:
                 suffix = f" __trace_var({idx}, \"{var_found}\", {var_found});"
