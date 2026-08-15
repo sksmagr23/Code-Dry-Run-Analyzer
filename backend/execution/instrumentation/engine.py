@@ -159,6 +159,15 @@ class CppInstrumenter:
                         var_found = inc_dec_match.group(1) or inc_dec_match.group(4)
             
             if var_found:
+                lhs = stripped
+                for op in ("=", "+=", "-=", "*=", "/="):
+                    if op in stripped:
+                        lhs = stripped.split(op)[0].strip()
+                        break
+                if "[" in lhs or "." in lhs or "->" in lhs:
+                    var_found = None
+                    
+            if var_found:
                 suffix = f" __trace_var({idx}, \"{var_found}\", {var_found});"
                 line_instrumented = f"{prefix}{line_instrumented}{suffix}"
             else:
