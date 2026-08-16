@@ -10,44 +10,43 @@ client = TestClient(app)
 
 test_code = """#include <iostream>
 #include <vector>
-#include <queue>
-
 using namespace std;
 
-int main() {
-    int n, m;
-    if (!(cin >> n >> m)) return 0;
-    
-    vector<vector<int>> adj(n);
-    for (int i = 0; i < m; i++) {
-        int u, v;
-        cin >> u >> v;
-        adj[u].push_back(v);
-        adj[v].push_back(u);
+class Node {
+public:
+    int data;
+    Node* left;
+    Node* right;
+
+    Node(int x) {
+        data = x;
+        left = right = NULL;
     }
-    
-    int start_node = 0;
-    vector<bool> visited(n, false);
-    queue<int> q;
-    
-    q.push(start_node);
-    visited[start_node] = true;
-    
-    cout << "BFS:";
-    while (!q.empty()) {
-        int curr = q.front();
-        q.pop();
-        cout << " " << curr;
+};
+
+void inOrder(Node* node, vector<int>& res) {
+    if (node == nullptr)
+        return;
         
-        for (int i = 0; i < adj[curr].size(); i++) {
-            int neighbor = adj[curr][i];
-            if (!visited[neighbor]) {
-                visited[neighbor] = true;
-                q.push(neighbor);
-            }
-        }
-    }
-    cout << endl;
+    inOrder(node->left, res);
+    res.push_back(node->data);
+    inOrder(node->right, res);
+}
+
+int main() {
+    Node* root = new Node(1);
+    root->left = new Node(2);
+    root->right = new Node(3);
+    root->left->left = new Node(4);
+    root->left->right = new Node(5);
+    root->right->right = new Node(6);
+
+    vector<int> res;
+    inOrder(root, res);
+    
+    for (int node : res) 
+        cout << node << " ";
+
     return 0;
 }
 """
@@ -59,7 +58,7 @@ def main():
     print("\n1. Calling POST /api/v1/sessions...")
     payload = {
         "source_code": test_code,
-        "input_data": "4 4\n0 1\n0 2\n1 2\n2 3"
+        "input_data": ""
     }
     response = client.post("/api/v1/sessions", json=payload)
     print(f"Status Code: {response.status_code}")

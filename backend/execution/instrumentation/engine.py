@@ -93,6 +93,8 @@ class CppInstrumenter:
         
         brace_depth = 0
         in_multiline_comment = False
+        in_class = False
+        pending_no_brace_block = False
         
         for idx, line in enumerate(lines, start=1):
             stripped = line.strip()
@@ -116,13 +118,19 @@ class CppInstrumenter:
             open_braces = stripped.count("{")
             close_braces = stripped.count("}")
             
+            if stripped.startswith("class ") or stripped.startswith("struct "):
+                in_class = True
+                
             # Simple heuristic: we are in code blocks when brace_depth > 0
             prev_depth = brace_depth
             brace_depth += (open_braces - close_braces)
             
-            # Only instrument lines inside function scopes
-            if prev_depth == 0 and brace_depth == 0:
+            # Only instrument lines inside function scopes.
+            # If we are directly inside class declaration body (in_class=True, depth<=1), skip tracing.
+            if (prev_depth == 0 and brace_depth == 0) or (in_class and brace_depth <= 1):
                 instrumented_lines.append(line)
+                if in_class and (stripped.startswith("};") or stripped == "};"):
+                    in_class = False
                 continue
                 
             # 3. Detect variables and inject tracing
@@ -145,8 +153,12 @@ class CppInstrumenter:
                 
             line_instrumented = line
             
-            # Inject line trace before statement
-            prefix = f"__trace_line({idx}); "
+            # Inject line trace before statement unless it is inside a brace-less single-statement block
+            prefix = ""
+            if not pending_no_brace_block:
+                prefix = f"__trace_line({idx}); "
+            else:
+                pending_no_brace_block = False
             
             # Check return statement to avoid placing trailing logs
             if stripped.startswith("return"):
@@ -198,6 +210,21 @@ class CppInstrumenter:
                 line_instrumented = f"{prefix}{line_instrumented}{suffix}"
             else:
                 line_instrumented = f"{prefix}{line_instrumented}"
+                
+            # Check if this line starts a control flow structure without braces
+            if (
+                stripped.startswith("for") or 
+                stripped.startswith("while") or 
+                stripped.startswith("if") or 
+                stripped.startswith("else")
+            ):
+                if "{" not in stripped:
+                    pending_no_brace_block = True
+                else:
+                    pending_no_brace_block = False
+            else:
+                # Reset the flag on any standard statement
+                pending_no_brace_block = False
                 
             instrumented_lines.append(line_instrumented)
             
