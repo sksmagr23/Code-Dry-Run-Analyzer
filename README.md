@@ -6,14 +6,12 @@ An interactive visual tool that lets you run C++ code and step through it like a
 
 ## What is Built till now
 
-### Phase 1: Sandbox & Tracing Core
-To build a "video player" for code, we need a camera that records the program's journey step-by-step:
-1. **The Code Rewriter (Instrumentation)**: Injects invisible "status notes" around statements. For example, if your code says `x = 5;`, the engine automatically rewrites it to log: *"I hit line 4, and variable 'x' changed to 5"*. It sends these notes to a separate channel (`stderr`) to keep your output clean.
+### Phase 1: Sandbox & AST Tracing Core
+1. **The Code Rewriter (AST Instrumentation)**: Parses your C++ code into a structured Abstract Syntax Tree (AST) using the **Tree-sitter compiler parser**. It traverses the nodes to identify primitive variable declarations and statements, then splices trace logs cleanly using byte offsets. This ensures that loop headers and class member declarations are bypassed, keeping compilation 100% stable. It outputs trace logs to a separate stream (`stderr`) to keep your stdout clean.
 2. **The Safe Container Sandbox**: Compiles and executes this rewritten code inside an isolated container (Docker) with strict CPU and memory limits. This prevents unsafe code from accessing your filesystem.
 3. **The Log Collector**: Reads the status prints from the sandbox and converts them into a list of structured trace events.
 
 ### Phase 2: Session API & Redis State
-Now that we can record the trace, we need a way to store it and provide play/pause control:
 1. **The Memory Bank (Redis)**: When you run code, we save the full execution trace in a fast cache database (Redis) and set a digital timeline pointer (the cursor) starting at step 1.
 2. **The Remote Control API (FastAPI)**: We built backend endpoints that act like remote buttons:
    * **Play / Create Session** (`POST /api/v1/sessions`): Runs the code and starts a session.
@@ -22,7 +20,6 @@ Now that we can record the trace, we need a way to store it and provide play/pau
 3. **The Replay Engine**: When you step or jump to a specific step $K$, the backend automatically "replays" the events from step 1 up to $K$. This reconstructs the values of all variables at that exact moment and displays them on the screen!
 
 ### Phase 3: Monaco Workspace & Timeline UI
-With recording and playback storage complete, we built a beautiful developer dashboard to watch your code run:
 1. **The Code Viewer (Monaco Editor)**: A read-only code display powered by Monaco (VS Code's editor). It uses delta decorations to overlay a glowing golden line highlight on the statement executing at the current step. It auto-scrolls to keep active lines in focus and provides a **Clear** button to wipe input code quickly.
 2. **Playback Console Header & Speed Controls**: Includes buttons to play/pause automatic ticks, step forward/backward, and restart. You can adjust the execution speed (Slow 0.5x, Normal 1.0x, Fast 2.0x, Turbo 5.0x).
 3. **Variables Inspector**: Scans primitive variable scopes. When a variable changes value on the active step, it highlights the item in yellow and cross-lines its historical value.

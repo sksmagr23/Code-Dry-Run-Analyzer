@@ -1,5 +1,6 @@
 import re
-import os
+from tree_sitter import Parser, Language
+import tree_sitter_cpp as tscpp
 
 CPP_PREAMBLE = """// ==========================================
 // Dry-Run Analyzer Instrumentation Header
@@ -36,196 +37,110 @@ inline void __trace_line(int line) {
 
 class CppInstrumenter:
     """
-    Instruments C++ source files by injecting logging calls to output trace events.
+    Compiler-aware C++ code instrumenter using Tree-sitter AST parsing.
     Tracks line hits and variable assignments for primitives and std::string.
     """
-    
-    # Matches types: int, double, float, char, bool, std::string
-    VAR_DECL_PATTERN = re.compile(
-        r'\b(int|double|float|char|bool|std::string)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^;]+);'
-    )
-    
-    # Matches variable assignments: x = expr;
-    VAR_ASSIGN_PATTERN = re.compile(
-        r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(=|\+=|-=|\*=|\/=|%=)\s*([^;]+);'
-    )
-    
-    # Matches increment/decrement: x++; ++x; x--; --x;
-    VAR_INC_DEC_PATTERN = re.compile(
-        r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*(\+\+|--);|(\+\+|--)\s*([a-zA-Z_][a-zA-Z0-9_]*);'
-    )
-
     def __init__(self):
-        pass
-        
+        # Load C++ Tree-sitter Parser
+        self.cpp_lang = Language(tscpp.language())
+        self.parser = Parser(self.cpp_lang)
+        self.primitive_types = {"int", "double", "float", "char", "bool", "string", "long", "size_t"}
+
     def instrument(self, source_code: str) -> str:
         """
-        Instruments a C++ source code string and returns the modified code.
+        Instruments C++ source code string using AST traversal and offset-based splicing.
         """
-        lines = source_code.splitlines()
+        source_bytes = bytearray(source_code.encode("utf8"))
+        tree = self.parser.parse(source_bytes)
         
-        # First pass: identify all primitive variable names to avoid tracing complex structures (like vectors)
         primitive_vars = set()
-        for line in lines:
-            stripped = line.strip()
-            decl_match = re.search(
-                r'\b(int|double|float|char|bool|std::string|string|long\s+long|size_t)\s+([^;(){]+)',
-                stripped
-            )
-            if decl_match:
-                vars_part = decl_match.group(2)
-                parts = vars_part.split(",")
-                for part in parts:
-                    part = part.strip()
-                    name_match = re.match(r'^([a-zA-Z_][a-zA-Z0-9_]*)', part)
-                    if name_match:
-                        primitive_vars.add(name_match.group(1))
-            
-            param_matches = re.findall(
-                r'\b(int|double|float|char|bool|std::string|string|long\s+long|size_t)\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',
-                stripped
-            )
-            for _, var_name in param_matches:
-                primitive_vars.add(var_name)
-                
-        instrumented_lines = []
-        instrumented_lines.append(CPP_PREAMBLE)
+        statements = []
         
-        brace_depth = 0
-        in_multiline_comment = False
-        in_class = False
-        pending_no_brace_block = False
+        # Traverse AST to collect variables and statements
+        self._traverse(tree.root_node, primitive_vars, statements, inside_function=False)
         
-        for idx, line in enumerate(lines, start=1):
-            stripped = line.strip()
+        insertions = []
+        for stmt in statements:
+            line = stmt.start_point[0] + 1
+            # Prepend line hit tracker
+            insertions.append((stmt.start_byte, f"__trace_line({line}); "))
             
-            # 1. Handle Comments & Preprocessor Directives
-            if in_multiline_comment:
-                if "*/" in stripped:
-                    in_multiline_comment = False
-                instrumented_lines.append(line)
-                continue
-            if stripped.startswith("/*"):
-                if "*/" not in stripped:
-                    in_multiline_comment = True
-                instrumented_lines.append(line)
-                continue
-            if stripped.startswith("//") or stripped.startswith("#"):
-                instrumented_lines.append(line)
-                continue
-                
-            # 2. Track scope/blocks via braces
-            open_braces = stripped.count("{")
-            close_braces = stripped.count("}")
-            
-            if stripped.startswith("class ") or stripped.startswith("struct "):
-                in_class = True
-                
-            # Simple heuristic: we are in code blocks when brace_depth > 0
-            prev_depth = brace_depth
-            brace_depth += (open_braces - close_braces)
-            
-            # Only instrument lines inside function scopes.
-            # If we are directly inside class declaration body (in_class=True, depth<=1), skip tracing.
-            if (prev_depth == 0 and brace_depth == 0) or (in_class and brace_depth <= 1):
-                instrumented_lines.append(line)
-                if in_class and (stripped.startswith("};") or stripped == "};"):
-                    in_class = False
-                continue
-                
-            # 3. Detect variables and inject tracing
-            # Skip empty lines, lines with just brackets, or return statements when doing assignments
-            if not stripped or stripped in ("{", "}", "{};"):
-                instrumented_lines.append(line)
-                continue
-                
-            # Determine if we should inject line hits (e.g. contains loop headers or expressions)
-            is_executable = (
-                ";" in stripped or 
-                stripped.startswith("for") or 
-                stripped.startswith("while") or 
-                stripped.startswith("if")
-            )
-            
-            if not is_executable:
-                instrumented_lines.append(line)
-                continue
-                
-            line_instrumented = line
-            
-            # Inject line trace before statement unless it is inside a brace-less single-statement block
-            prefix = ""
-            if not pending_no_brace_block:
-                prefix = f"__trace_line({idx}); "
-            else:
-                pending_no_brace_block = False
-            
-            # Check return statement to avoid placing trailing logs
-            if stripped.startswith("return"):
-                instrumented_lines.append(f"{prefix}{line_instrumented}")
-                continue
-                
-            # Check for variable updates on this line
-            var_found = None
-            
-            is_control_flow = (
-                stripped.startswith("for") or 
-                stripped.startswith("while") or 
-                stripped.startswith("if") or 
-                stripped.startswith("else") or 
-                stripped.startswith("switch")
-            )
-            
-            if not is_control_flow:
-                # Look for: type var = expr;
-                decl_match = self.VAR_DECL_PATTERN.search(stripped)
-                if decl_match:
-                    var_found = decl_match.group(2)
+            # If not a return statement, check for primitive assignments to trace variables
+            if stmt.type != "return_statement":
+                var_name = self._get_assigned_variable(stmt, primitive_vars)
+                if var_name:
+                    # Append variable trace tracker immediately after statement ends (after semicolon)
+                    insertions.append((stmt.end_byte, f" __trace_var({line}, \"{var_name}\", {var_name});"))
                     
-                if not var_found:
-                    # Look for: var = expr;
-                    assign_match = self.VAR_ASSIGN_PATTERN.search(stripped)
-                    if assign_match:
-                        var_found = assign_match.group(1)
-                        
-                if not var_found:
-                    # Look for: var++;
-                    inc_dec_match = self.VAR_INC_DEC_PATTERN.search(stripped)
-                    if inc_dec_match:
-                        var_found = inc_dec_match.group(1) or inc_dec_match.group(4)
+        # Apply offset insertions from end-of-file to start to prevent offset shifting
+        insertions.sort(key=lambda x: x[0], reverse=True)
+        for offset, text in insertions:
+            source_bytes[offset:offset] = text.encode("utf8")
+            
+        # Prepend preamble at start of file
+        instrumented_code = CPP_PREAMBLE + source_bytes.decode("utf8")
+        return instrumented_code
 
-            if var_found:
-                lhs = stripped
-                for op in ("=", "+=", "-=", "*=", "/="):
-                    if op in stripped:
-                        lhs = stripped.split(op)[0].strip()
-                        break
-                if "[" in lhs or "." in lhs or "->" in lhs:
-                    var_found = None
-                elif var_found not in primitive_vars:
-                    var_found = None
+    def _find_type_token(self, node) -> str | None:
+        """Helper to recursively scan declaration children for type identifier name."""
+        if node.type in ("primitive_type", "type_identifier"):
+            return node.text.decode("utf8")
+        for child in node.children:
+            res = self._find_type_token(child)
+            if res:
+                return res
+        return None
+
+    def _traverse(self, node, primitive_vars, statements, inside_function=False):
+        """Recursively walks AST to extract primitive declarations and executable statements."""
+        is_func = node.type == "function_definition"
+        in_func = inside_function or is_func
+        
+        # 1. Collect primitive variable names globally (declaration, field_declaration, parameter_declaration)
+        if node.type in ("declaration", "field_declaration", "parameter_declaration"):
+            type_token = self._find_type_token(node)
+            if type_token in self.primitive_types:
+                def find_vars(n):
+                    if n.type in ("identifier", "field_identifier"):
+                        primitive_vars.add(n.text.decode("utf8"))
+                    for child in n.children:
+                        find_vars(child)
+                find_vars(node)
+                
+        # 2. Collect target executable statements inside function definitions
+        if in_func and not is_func:
+            if node.type in ("expression_statement", "declaration", "return_statement"):
+                # Exclude statements that are part of loop/conditional headers
+                if node.parent and node.parent.type not in ("for_statement", "for_range_loop", "while_statement", "if_statement", "else_clause"):
+                    statements.append(node)
+                    return  # Do not traverse into children of instrumented statements
                     
-            if var_found:
-                suffix = f" __trace_var({idx}, \"{var_found}\", {var_found});"
-                line_instrumented = f"{prefix}{line_instrumented}{suffix}"
-            else:
-                line_instrumented = f"{prefix}{line_instrumented}"
-                
-            # Check if this line starts a control flow structure without braces
-            if (
-                stripped.startswith("for") or 
-                stripped.startswith("while") or 
-                stripped.startswith("if") or 
-                stripped.startswith("else")
-            ):
-                if "{" not in stripped:
-                    pending_no_brace_block = True
-                else:
-                    pending_no_brace_block = False
-            else:
-                # Reset the flag on any standard statement
-                pending_no_brace_block = False
-                
-            instrumented_lines.append(line_instrumented)
-            
-        return "\n".join(instrumented_lines)
+        for child in node.children:
+            self._traverse(child, primitive_vars, statements, in_func)
+
+    def _get_assigned_variable(self, node, primitive_vars):
+        """Traverses a statement node to check if it assigns/updates a tracked primitive variable."""
+        if node.type == "assignment_expression":
+            lhs = node.child(0)
+            if lhs and lhs.type == "identifier":
+                name = lhs.text.decode("utf8")
+                if name in primitive_vars:
+                    return name
+        elif node.type == "init_declarator":
+            declarator = node.child_by_field_name("declarator")
+            if declarator and declarator.type == "identifier":
+                name = declarator.text.decode("utf8")
+                if name in primitive_vars:
+                    return name
+        elif node.type == "update_expression":
+            for child in node.children:
+                if child.type == "identifier":
+                    name = child.text.decode("utf8")
+                    if name in primitive_vars:
+                        return name
+                        
+        for child in node.children:
+            res = self._get_assigned_variable(child, primitive_vars)
+            if res:
+                return res
+        return None
