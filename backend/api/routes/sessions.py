@@ -3,6 +3,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from backend.app.schemas.session import (
     SessionCreateRequest, SessionStepRequest, SessionJumpRequest, SessionStateResponse
 )
+from backend.app.schemas.analysis import AnalysisRequest
+from backend.agents.planner import AgentPlanner, AgentAnalysisResponse
 from backend.app.redis_client import redis_client
 from backend.execution.sandbox.manager import SandboxManager
 from backend.execution.sandbox.policy import SandboxPolicy
@@ -43,7 +45,6 @@ def reconstruct_state(session_id: str, trace_data: dict, step: int, code: str) -
             "error_message": error_message
         }
         
-    # Cap target step
     if step < 1:
         step = 1
     if step > total_steps:
@@ -53,16 +54,13 @@ def reconstruct_state(session_id: str, trace_data: dict, step: int, code: str) -
     variables = {}
     output = []
     
-    # Replay events sequentially up to K
     for idx in range(step):
         event = events[idx]
         event_type = event.get("type")
         
-        # Update current line index
         if "line" in event and event["line"] > 0:
             current_line = event["line"]
             
-        # Reset variable change markers for the new step iteration
         for var in variables.values():
             var["changed"] = False
             
@@ -97,22 +95,18 @@ async def create_session(req: SessionCreateRequest):
     if not redis_client:
         raise HTTPException(status_code=500, detail="Redis server is offline.")
         
-    # Compile and generate trace
     policy = SandboxPolicy()
     trace = manager.compile_and_run(req.source_code, req.input_data, policy)
     
     session_id = trace.session_id
     
-    # Serialize and save to Redis with 30-minute expiry (1800s)
     redis_client.setex(f"trace_{session_id}", 1800, trace.model_dump_json())
     redis_client.setex(f"code_{session_id}", 1800, req.source_code)
     redis_client.setex(f"input_{session_id}", 1800, req.input_data)
     redis_client.setex(f"cursor_{session_id}", 1800, "1")
     
-    # Convert ExecutionTrace trace events to simple dict for reconstruction
     trace_data = json.loads(trace.model_dump_json())
     
-    # Start at step 1
     return reconstruct_state(session_id, trace_data, 1, req.source_code)
 
 @router.get("/{session_id}", response_model=SessionStateResponse)
@@ -131,20 +125,17 @@ async def step_session(session_id: str, req: SessionStepRequest):
     if total_steps == 0:
         return reconstruct_state(session_id, trace_data, 1, code)
         
-    # Calculate target step
     delta = req.steps
     if req.direction == "backward":
         delta = -delta
         
     target_cursor = cursor + delta
     
-    # Clamp boundaries
     if target_cursor < 1:
         target_cursor = 1
     if target_cursor > total_steps:
         target_cursor = total_steps
         
-    # Update cursor in Redis
     redis_client.setex(f"cursor_{session_id}", 1800, str(target_cursor))
     
     return reconstruct_state(session_id, trace_data, target_cursor, code)
@@ -168,3 +159,18 @@ async def jump_session(session_id: str, req: SessionJumpRequest):
     redis_client.setex(f"cursor_{session_id}", 1800, str(target_cursor))
     
     return reconstruct_state(session_id, trace_data, target_cursor, code)
+
+@router.post("/{session_id}/analyze", response_model=AgentAnalysisResponse)
+async def analyze_session(session_id: str, req: AnalysisRequest):
+    """Invokes the Agent Planner to analyze the session trace and code."""
+    trace_data, _, code = get_session_data(session_id)
+    
+    input_val = redis_client.get(f"input_{session_id}") or ""
+    input_data = input_val.decode("utf8") if isinstance(input_val, bytes) else str(input_val)
+    
+    try:
+        planner = AgentPlanner()
+        analysis = planner.plan_session(code, input_data, trace_data, req.query)
+        return analysis
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent analysis failed: {str(e)}")

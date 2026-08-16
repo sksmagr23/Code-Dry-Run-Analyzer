@@ -8,29 +8,62 @@ CPP_PREAMBLE = """// ==========================================
 #include <iostream>
 #include <string>
 
+extern int __trace_count;
+int __trace_count = 0;
+
+inline void __trace_line(int line) {
+    if (__trace_count > 500) return;
+    if (++__trace_count > 500) {
+        std::cerr << "{\\"type\\":\\"error\\",\\"message\\":\\"Safety step limit exceeded (500 steps).\\"}" << std::endl;
+        return;
+    }
+    std::cerr << "{\\"type\\":\\"line\\",\\"line\\":" << line << "}" << std::endl;
+}
+
 template<typename T>
 void __trace_var(int line, const char* name, const T& val) {
+    if (__trace_count > 500) return;
+    if (++__trace_count > 500) {
+        std::cerr << "{\\"type\\":\\"error\\",\\"message\\":\\"Safety step limit exceeded (500 steps).\\"}" << std::endl;
+        return;
+    }
     std::cerr << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":" << val << "}" << std::endl;
 }
 
 inline void __trace_var(int line, const char* name, const std::string& val) {
+    if (__trace_count > 500) return;
+    if (++__trace_count > 500) {
+        std::cerr << "{\\"type\\":\\"error\\",\\"message\\":\\"Safety step limit exceeded (500 steps).\\"}" << std::endl;
+        return;
+    }
     std::cerr << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":\\"" << val << "\\"}" << std::endl;
 }
 
 inline void __trace_var(int line, const char* name, const char* val) {
+    if (__trace_count > 500) return;
+    if (++__trace_count > 500) {
+        std::cerr << "{\\"type\\":\\"error\\",\\"message\\":\\"Safety step limit exceeded (500 steps).\\"}" << std::endl;
+        return;
+    }
     std::cerr << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":\\"" << val << "\\"}" << std::endl;
 }
 
 inline void __trace_var(int line, const char* name, char val) {
+    if (__trace_count > 500) return;
+    if (++__trace_count > 500) {
+        std::cerr << "{\\"type\\":\\"error\\",\\"message\\":\\"Safety step limit exceeded (500 steps).\\"}" << std::endl;
+        return;
+    }
     std::cerr << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":\\"" << val << "\\"}" << std::endl;
 }
 
 inline void __trace_var(int line, const char* name, bool val) {
+    if (__trace_count > 500) return;
+    if (++__trace_count > 500) {
+        std::cerr << "{\\"type\\":\\"error\\",\\"message\\":\\"Safety step limit exceeded (500 steps).\\"}" << std::endl;
+        return;
+    }
     std::cerr << "{\\"type\\":\\"assignment\\",\\"line\\":" << line << ",\\"variable\\":\\"" << name << "\\",\\"value\\":" << (val ? "true" : "false") << "}" << std::endl;
-}
-
-inline void __trace_line(int line) {
-    std::cerr << "{\\"type\\":\\"line\\",\\"line\\":" << line << "}" << std::endl;
 }
 // ==========================================
 """
