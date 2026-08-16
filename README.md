@@ -21,6 +21,13 @@ Now that we can record the trace, we need a way to store it and provide play/pau
    * **Jump to Step** (`POST /api/v1/sessions/{id}/jump`): Skips directly to any step in the execution.
 3. **The Replay Engine**: When you step or jump to a specific step $K$, the backend automatically "replays" the events from step 1 up to $K$. This reconstructs the values of all variables at that exact moment and displays them on the screen!
 
+### Phase 3: Monaco Workspace & Timeline UI
+With recording and playback storage complete, we built a beautiful developer dashboard to watch your code run:
+1. **The Code Viewer (Monaco Editor)**: A read-only code display powered by Monaco (VS Code's editor). It uses delta decorations to overlay a glowing golden line highlight on the statement executing at the current step. It auto-scrolls to keep active lines in focus and provides a **Clear** button to wipe input code quickly.
+2. **Playback Console Header & Speed Controls**: Includes buttons to play/pause automatic ticks, step forward/backward, and restart. You can adjust the execution speed (Slow 0.5x, Normal 1.0x, Fast 2.0x, Turbo 5.0x).
+3. **Variables Inspector**: Scans primitive variable scopes. When a variable changes value on the active step, it highlights the item in yellow and cross-lines its historical value.
+4. **Console Terminal Panel & Multi-line STDIN**: Consolidates stdout program outputs and stderr compile warnings. Includes a multi-line STDIN `<textarea>` to feed multi-line parameters (like graph/matrix data) naturally into sandbox environments.
+
 ---
 
 ## 📂 Repository Layout
@@ -67,6 +74,13 @@ Start the uvicorn development server from the **project root** directory (to ens
 ```powershell
 # Ensure you are in the project root directory, then run:
 uvicorn backend.app.main:app --reload
+```
+
+### 4. Run the React Frontend Development Server
+Start the client interface to interact with the dry-run timeline explorer:
+```powershell
+cd frontend
+npm run dev
 ```
 
 ---

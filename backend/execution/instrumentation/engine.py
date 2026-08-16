@@ -63,8 +63,32 @@ class CppInstrumenter:
         Instruments a C++ source code string and returns the modified code.
         """
         lines = source_code.splitlines()
-        instrumented_lines = []
         
+        # First pass: identify all primitive variable names to avoid tracing complex structures (like vectors)
+        primitive_vars = set()
+        for line in lines:
+            stripped = line.strip()
+            decl_match = re.search(
+                r'\b(int|double|float|char|bool|std::string|string|long\s+long|size_t)\s+([^;(){]+)',
+                stripped
+            )
+            if decl_match:
+                vars_part = decl_match.group(2)
+                parts = vars_part.split(",")
+                for part in parts:
+                    part = part.strip()
+                    name_match = re.match(r'^([a-zA-Z_][a-zA-Z0-9_]*)', part)
+                    if name_match:
+                        primitive_vars.add(name_match.group(1))
+            
+            param_matches = re.findall(
+                r'\b(int|double|float|char|bool|std::string|string|long\s+long|size_t)\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',
+                stripped
+            )
+            for _, var_name in param_matches:
+                primitive_vars.add(var_name)
+                
+        instrumented_lines = []
         instrumented_lines.append(CPP_PREAMBLE)
         
         brace_depth = 0
@@ -157,7 +181,7 @@ class CppInstrumenter:
                     inc_dec_match = self.VAR_INC_DEC_PATTERN.search(stripped)
                     if inc_dec_match:
                         var_found = inc_dec_match.group(1) or inc_dec_match.group(4)
-            
+
             if var_found:
                 lhs = stripped
                 for op in ("=", "+=", "-=", "*=", "/="):
@@ -165,6 +189,8 @@ class CppInstrumenter:
                         lhs = stripped.split(op)[0].strip()
                         break
                 if "[" in lhs or "." in lhs or "->" in lhs:
+                    var_found = None
+                elif var_found not in primitive_vars:
                     var_found = None
                     
             if var_found:
