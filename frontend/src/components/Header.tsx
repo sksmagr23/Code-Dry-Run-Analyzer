@@ -1,55 +1,54 @@
 import React from "react";
-import { Cpu, CheckCircle, AlertCircle } from "lucide-react";
+import { Cpu, Sparkles, CheckCircle, AlertCircle } from "lucide-react";
 
 interface HeaderProps {
   status: string;
-  onCompileAndRun: () => void;
-  compiling: boolean;
+  onAnalyze: () => void;
+  isAnalyzing: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ status, onCompileAndRun, compiling }) => {
+export const Header: React.FC<HeaderProps> = ({ status, onAnalyze, isAnalyzing }) => {
   return (
-    <header className="flex items-center justify-between px-6 py-4 border-b border-[#2d2d2d] bg-[#1a1a1a]">
+    <header className="h-14 px-6 border-b border-[#27272a] bg-[#131316] flex items-center justify-between z-20">
       <div className="flex items-center space-x-3">
-        <div className="p-2 bg-yellow-500 rounded-lg text-black">
-          <Cpu className="w-5 h-5" />
+        <div className="w-8 h-8 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+          <Cpu className="w-4 h-4" />
         </div>
         <div>
-          <h1 className="text-lg font-bold tracking-wide text-white">AI DSA Mentor Workspace</h1>
-          <p className="text-xs text-gray-400">Interactive DSA Learning & Visual Analysis</p>
+          <h1 className="text-sm font-bold tracking-tight text-white flex items-center space-x-2">
+            <span>AlgoMentor AI</span>
+            
+          </h1>
+          <p className="text-[11px] text-gray-400">DSA Learning, Debugging & Educational Visual Workspace</p>
         </div>
       </div>
       
       <div className="flex items-center space-x-4">
         <button
-          onClick={onCompileAndRun}
-          disabled={compiling}
-          className="flex items-center px-4 py-2 text-sm font-semibold bg-yellow-500 hover:bg-yellow-400 disabled:bg-gray-700 text-black rounded-md transition duration-200 cursor-pointer"
+          onClick={onAnalyze}
+          disabled={isAnalyzing}
+          className="flex items-center space-x-1.5 px-4 py-1.5 text-xs font-mono font-bold bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-700 text-black transition duration-200 cursor-pointer border border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
         >
-          {compiling ? "Compiling..." : "Run Sandbox"}
+          <Sparkles className="w-3.5 h-3.5 fill-black" />
+          <span>{isAnalyzing ? "Analyzing Solution..." : "Analyze Solution"}</span>
         </button>
         
-        <div className="h-6 w-px bg-[#2d2d2d]" />
+        <div className="h-5 w-px bg-[#27272a]" />
         
         <div className="flex items-center space-x-2">
           {status === "success" && (
-            <span className="flex items-center px-3 py-1 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full text-xs font-semibold">
-              <CheckCircle className="w-3.5 h-3.5 mr-1" /> Sandbox Active
+            <span className="flex items-center px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-mono">
+              <CheckCircle className="w-3 h-3 mr-1" /> Sandbox Active
             </span>
           )}
           {status === "error" && (
-            <span className="flex items-center px-3 py-1 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full text-xs font-semibold">
-              <AlertCircle className="w-3.5 h-3.5 mr-1" /> Compile Error
-            </span>
-          )}
-          {status === "timeout" && (
-            <span className="flex items-center px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 rounded-full text-xs font-semibold">
-              <AlertCircle className="w-3.5 h-3.5 mr-1" /> Timeout
+            <span className="flex items-center px-2.5 py-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[11px] font-mono">
+              <AlertCircle className="w-3 h-3 mr-1" /> Compile Error
             </span>
           )}
           {status === "idle" && (
-            <span className="flex items-center px-3 py-1 bg-gray-500/10 border border-gray-500/20 text-gray-400 rounded-full text-xs font-semibold">
-              Idle
+            <span className="flex items-center px-2.5 py-1 bg-[#27272a] text-gray-400 text-[11px] font-mono">
+              Agent Idle
             </span>
           )}
         </div>

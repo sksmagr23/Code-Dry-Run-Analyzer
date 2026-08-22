@@ -8,7 +8,7 @@ interface EditorPanelProps {
   isCompiling: boolean;
   activeLine: number;
   sessionId: string | null;
-  onClear: () => void;
+  onClear?: () => void;
 }
 
 export const EditorPanel: React.FC<EditorPanelProps> = ({
@@ -17,7 +17,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   isCompiling,
   activeLine,
   sessionId,
-  onClear
+  onClear: _onClear
 }) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
@@ -37,11 +37,9 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
     const editor = editorRef.current;
     const monaco = monacoRef.current;
     
-    // Clear previous line highlights
     decorationsRef.current = editor.deltaDecorations(decorationsRef.current, []);
     
     if (sessionId) {
-      // Add execution line highlights
       decorationsRef.current = editor.deltaDecorations([], [
         {
           range: new monaco.Range(lineNumber, 1, lineNumber, 1),
@@ -53,30 +51,22 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
         }
       ]);
       
-      // Keep execution centered
       editor.revealLineInCenter(lineNumber);
     }
   }, [sessionId]);
 
-  // Re-run highlights when line cursor shifts
   useEffect(() => {
     highlightLine(activeLine);
   }, [activeLine, highlightLine]);
 
   return (
-    <section className="flex flex-col w-[55%] border-r border-[#2d2d2d] bg-[#1e1e1e]">
-      <div className="flex items-center justify-between px-4 py-3 bg-[#181818] border-b border-[#2d2d2d]">
+    <section className="flex flex-col w-full h-full bg-[#121214]">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#131316] border-b border-[#27272a]">
         <div className="flex items-center">
-          <FileCode className="w-4 h-4 mr-2 text-yellow-500" />
-          <span className="text-xs font-bold text-gray-300">main.cpp</span>
+          <FileCode className="w-3.5 h-3.5 mr-2 text-emerald-400" />
+          <span className="text-xs font-bold font-mono text-gray-300">Solution.cpp</span>
         </div>
-        <button
-          onClick={onClear}
-          disabled={isCompiling}
-          className="text-xs px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:border-red-500/30 rounded transition disabled:opacity-50 cursor-pointer"
-        >
-          Clear
-        </button>
+        <span className="text-[10px] font-mono text-gray-500">C++20</span>
       </div>
       <div className="flex-1 w-full relative">
         <MonacoEditor
