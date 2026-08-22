@@ -54,7 +54,7 @@ export default function App() {
     {
       id: "1",
       sender: "agent",
-      content: "Welcome to AlgoMentor AI! Provide a problem statement and solution code on the left panel, and ask me to explain, debug, optimize, or dry run your solution.",
+      content: "Welcome to CodeMentor AI! Provide a problem statement and solution code on the left panel, and ask me to explain, debug, optimize, or dry run your solution.",
       timestamp: "Just now",
       actions: [
         { id: "a1", label: "🔍 Show Dry Run", actionType: "DRY_RUN" },

@@ -39,7 +39,7 @@ export const RightAgentWindow: React.FC<RightAgentWindowProps> = ({
           </div>
           <div>
             <h3 className="text-xs font-bold text-white flex items-center space-x-1.5 font-mono">
-              <span>AlgoMentor AI</span>
+              <span>CodeMentor AI</span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </h3>
           </div>
@@ -68,7 +68,7 @@ export const RightAgentWindow: React.FC<RightAgentWindowProps> = ({
               ) : (
                 <>
                   <Bot className="w-3 h-3 text-indigo-400" />
-                  <span>AlgoMentor AI</span>
+                  <span>CodeMentor AI</span>
                 </>
               )}
               <span>• {msg.timestamp}</span>

@@ -1,4 +1,4 @@
-# Agentic Code Dry-Run Analyzer
+# Code Mentor AI Agent
 
 An interactive visual tool that lets you run C++ code and step through it like a video player, showing you exactly how lines execute and how variables change.
 

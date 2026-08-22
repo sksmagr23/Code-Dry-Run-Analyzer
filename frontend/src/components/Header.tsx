@@ -16,7 +16,7 @@ export const Header: React.FC<HeaderProps> = ({ status, onAnalyze, isAnalyzing }
         </div>
         <div>
           <h1 className="text-sm font-bold tracking-tight text-white flex items-center space-x-2">
-            <span>AlgoMentor AI</span>
+            <span>CodeMentor AI</span>
             
           </h1>
           <p className="text-[11px] text-gray-400">DSA Learning, Debugging & Educational Visual Workspace</p>

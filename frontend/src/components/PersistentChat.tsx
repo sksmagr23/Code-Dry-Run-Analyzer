@@ -43,7 +43,7 @@ export const PersistentChat: React.FC<PersistentChatProps> = ({
           </div>
           <div>
             <h3 className="text-xs font-bold text-white flex items-center space-x-1.5">
-              <span>AlgoMentor AI</span>
+              <span>CodeMentor AI</span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </h3>
             <p className="text-[10px] font-mono text-gray-400">Persistent AI DSA Mentor</p>
@@ -71,7 +71,7 @@ export const PersistentChat: React.FC<PersistentChatProps> = ({
               ) : (
                 <>
                   <Bot className="w-3 h-3 text-indigo-400" />
-                  <span>AlgoMentor AI</span>
+                  <span>CodeMentor AI</span>
                 </>
               )}
               <span>• {msg.timestamp}</span>

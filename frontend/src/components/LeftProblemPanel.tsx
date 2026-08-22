@@ -261,7 +261,7 @@ export const LeftProblemPanel: React.FC<LeftProblemPanelProps> = ({
 
                   <div className="bg-[#131316] p-3 border border-[#27272a] text-[11px] font-mono text-gray-400 flex items-center space-x-2">
                     <AlertCircle className="w-4 h-4 text-sky-400 shrink-0" />
-                    <span>Active test case data is sent to AlgoMentor AI when requesting analysis or dry runs.</span>
+                    <span>Active test case data is sent to CodeMentor AI when requesting analysis or dry runs.</span>
                   </div>
                 </>
               )}
