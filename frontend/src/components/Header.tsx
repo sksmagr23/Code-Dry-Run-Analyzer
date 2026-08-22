@@ -15,8 +15,8 @@ export const Header: React.FC<HeaderProps> = ({ status, onCompileAndRun, compili
           <Cpu className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-lg font-bold tracking-wide text-white">Dry-Run Workspace</h1>
-          <p className="text-xs text-gray-400">Step-by-Step execution visualizer</p>
+          <h1 className="text-lg font-bold tracking-wide text-white">AI DSA Mentor Workspace</h1>
+          <p className="text-xs text-gray-400">Interactive DSA Learning & Visual Analysis</p>
         </div>
       </div>
       
