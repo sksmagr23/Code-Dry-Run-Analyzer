@@ -115,50 +115,7 @@ async def get_session(session_id: str):
     trace_data, cursor, code = get_session_data(session_id)
     return reconstruct_state(session_id, trace_data, cursor, code)
 
-@router.post("/{session_id}/step", response_model=SessionStateResponse)
-async def step_session(session_id: str, req: SessionStepRequest):
-    """Moves execution timeline cursor forward or backward and returns updated state."""
-    trace_data, cursor, code = get_session_data(session_id)
-    events = trace_data.get("events", [])
-    total_steps = len(events)
-    
-    if total_steps == 0:
-        return reconstruct_state(session_id, trace_data, 1, code)
-        
-    delta = req.steps
-    if req.direction == "backward":
-        delta = -delta
-        
-    target_cursor = cursor + delta
-    
-    if target_cursor < 1:
-        target_cursor = 1
-    if target_cursor > total_steps:
-        target_cursor = total_steps
-        
-    redis_client.setex(f"cursor_{session_id}", 1800, str(target_cursor))
-    
-    return reconstruct_state(session_id, trace_data, target_cursor, code)
 
-@router.post("/{session_id}/jump", response_model=SessionStateResponse)
-async def jump_session(session_id: str, req: SessionJumpRequest):
-    """Jumps timeline cursor to a specific execution step."""
-    trace_data, cursor, code = get_session_data(session_id)
-    events = trace_data.get("events", [])
-    total_steps = len(events)
-    
-    if total_steps == 0:
-        return reconstruct_state(session_id, trace_data, 1, code)
-        
-    target_cursor = req.step
-    if target_cursor < 1:
-        target_cursor = 1
-    if target_cursor > total_steps:
-        target_cursor = total_steps
-        
-    redis_client.setex(f"cursor_{session_id}", 1800, str(target_cursor))
-    
-    return reconstruct_state(session_id, trace_data, target_cursor, code)
 
 @router.post("/{session_id}/analyze", response_model=AgentAnalysisResponse)
 async def analyze_session(session_id: str, req: AnalysisRequest):

@@ -38,35 +38,4 @@ export const api = {
     
     return res.json();
   },
-
-  stepSession: async (sessionId: string, direction: "forward" | "backward"): Promise<SessionState> => {
-    const res = await fetch(`${API_URL}/api/v1/sessions/${sessionId}/step`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        direction,
-        steps: 1,
-      }),
-    });
-
-    if (!res.ok) throw new Error("Timeline step action failed");
-    return res.json();
-  },
-
-  jumpSession: async (sessionId: string, targetStep: number): Promise<SessionState> => {
-    const res = await fetch(`${API_URL}/api/v1/sessions/${sessionId}/jump`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        step: targetStep,
-      }),
-    });
-
-    if (!res.ok) throw new Error("Timeline jump action failed");
-    return res.json();
-  },
 };
